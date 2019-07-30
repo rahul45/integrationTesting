@@ -1,0 +1,43 @@
+/**
+  Jenkins pipeline for integration testing
+  SECRET_CREDENTIALS_ID:Git creds which would be part of the jenkins still not full sure
+  
+**/
+pipeline{
+stages{
+     agent  any
+     environment{
+        SECRET_CREDENTIALS_ID:"jenkins-cred"
+        JAVA_VERSION = '1.8.0'
+        GRADLE_VERSION = '5.2.1'
+        DEVOPS_METRICS_ENABLED = 'false'
+        NODEJS_VERSION = '7.9.0'
+      }
+      stage('Build Project') {
+              agent{
+                label 'docker-maven-slave'
+            }
+            steps {
+                glMavenBuild pomFile: 'pom.xml',
+                        runJacocoCoverage: false,
+                        uploadJacocoResults: false
+            }
+        }
+        
+      stage('Integration Tests'){
+            agent{
+                label 'docker-kitchensink-slave'
+            }
+            steps{
+                withCredentials([string(credentialsId:"${SECRET_CREDENTIALS_ID}", variable:'NPM_AUTH_KEY')]){
+                    command """
+                    export NPM_AUTH_KEY="ped"
+                    export NPM_EMAIL="email"
+                    npm install newman
+                    node node_modules/newman/bin/newman.js run src/test/resources/integrationTesting/testAPI.postman_collection.json --insecure
+                    """
+                    }
+            }
+        }
+    }
+}
